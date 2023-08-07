@@ -67,24 +67,24 @@ def molecule(mols, src_len, reactant_mask = None, ranges = None):
     return features
 
 
-def reaction(args):
+def reaction(args): # TODO: REWRITE A REACTION FUNCTION FOR TEST ONLY
     """ processes a reaction, returns dict of arrays"""
     src, tgt = args
     pattern = re.compile(":(\d+)\]") # atom map numbers
-    src_len = Chem.MolFromSmiles(src).GetNumAtoms()
+    src_len = Chem.MolFromSmiles(src).GetNumAtoms() # 反应物的原子个数
 
-    # reactant mask
+    # reactant mask ------------------------------------------------------------------------
     src_mols = src.split('.')
-    tgt_atoms = pattern.findall(tgt)
-    reactant_mask = [False for i in src_mols]
+    tgt_atoms = pattern.findall(tgt) # TODO: ? bug?tgt没有用原子映射? 而且在test的时候，并不知道tgt！！
+    reactant_mask = [False for i in src_mols] # 长度为“反应物分子个数”的布尔数组
     for j, item in enumerate(src_mols):
-        atoms = pattern.findall(item)
+        atoms = pattern.findall(item) # 找到反应物分子中的每个原子编号；atoms是一个list
         for atom in atoms:
-            if atom in tgt_atoms:
+            if atom in tgt_atoms: # 如果反应物原子出现在产物中，则reactant_mask中对应编号为True
                 reactant_mask[j] = True
                 break  
                 
-    # the atom map num ranges of each molecule for segment mask
+    # the atom map num ranges of each molecule for segment mask -----------------------------
     src_mols = [Chem.MolFromSmiles(item) for item in src_mols]
     tgt_mols = [Chem.MolFromSmiles(item) for item in tgt.split(".")]
     ranges = []
@@ -94,7 +94,7 @@ def reaction(args):
         for atom in mol.GetAtoms():
             lower = min(lower, atom.GetAtomMapNum()-1)
             upper = max(upper, atom.GetAtomMapNum())
-        ranges.append((lower, upper))
+        ranges.append((lower, upper)) # ranges是一个长度为"反应物分子个数"的list，每个元素是一个tuple，表示每个反应物分子的原子编号范围
     
     src_features = molecule(src_mols, src_len, reactant_mask, ranges)
     tgt_features = molecule(tgt_mols, src_len)
@@ -125,7 +125,7 @@ def reaction(args):
             if diff[j] < 0:
                 bond_dec[i][dec_cnt:dec_cnt-diff[j]] = j
                 dec_cnt -= diff[j]
-        assert inc_cnt == dec_cnt
+        assert inc_cnt == dec_cnt # 以确保在目标分子中增加和删除的键连接数量相等
         
     item = {}
     for key in src_features:
@@ -146,18 +146,19 @@ def process(name):
             src.append(rxn[0])
             tgt.append(rxn[1])
 
-    pool = ProcessPoolExecutor(10)
+    # pool = ProcessPoolExecutor(10)
     dataset = []   
     batch_size = 2048
     for i in trange(len(src)//batch_size+1):
         upper = min((i+1)*batch_size, len(src))
         arg_list = [(src[idx], tgt[idx]) for idx in range(i*batch_size, upper)]
-        result = pool.map(reaction, arg_list, chunksize= 64)
+        # result = pool.map(reaction, arg_list, chunksize= 64)
+        result = map(reaction, arg_list)
         result = list(result)  
         for item in result:
             if not item is None:
                 dataset += [item]        
-    pool.shutdown()
+    # pool.shutdown()
 
     with open(name +"_"+prefix+ '.pickle', 'wb') as file:
         pickle.dump(dataset, file)
@@ -168,6 +169,6 @@ if __name__ =='__main__':
     lg = RDLogger.logger()
     lg.setLevel(RDLogger.CRITICAL)
     RDLogger.DisableLog('rdApp.info') 
-    process("data/valid")
-    process("data/test")
-    process("data/train")
+    process("data/USPTO/valid")
+    process("data/USPTO/test")
+    process("data/USPTO/train")

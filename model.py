@@ -158,7 +158,7 @@ class MoleculeVAE(nn.Module):
 
         src = self.M_encoder(tensors['element'], tensors['src_bond'], tensors['src_aroma'],
                              tensors['src_charge'], tensors['src_mask'], tensors['src_segment'], tensors['reactant'] )
-        if mode is 'train':
+        if mode == 'train':
             bond, aroma, charge = tensors['tgt_bond'], tensors['tgt_aroma'], tensors['tgt_charge']
             if self.args.vae:
 
@@ -174,7 +174,7 @@ class MoleculeVAE(nn.Module):
                                         bond, aroma, charge, tensors['tgt_mask'])
                 result['loss'] = result['pred_loss'] 
 
-        elif mode is 'sample':
+        elif mode == 'sample':
             """ returns bond[B, L, 4], aroma [B, L], charge[B, L], weight [B, L, L]"""
             result = self.M_decoder.sample(src, tensors['src_bond'], tensors['src_mask'], temperature)
         return result
