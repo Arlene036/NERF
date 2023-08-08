@@ -73,7 +73,7 @@ class Trainer(object):
                     state_dict[key] = checkpoint['model_state_dict'][key]
         for key in state_dict:
             state_dict[key] = state_dict[key] / len(self.args.checkpoint)
-        self.model.module.load_state_dict(state_dict)
+        self.model.load_state_dict(state_dict)
         if self.dataloader_tr is not None:
             self._optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.epoch = checkpoint['epoch']
@@ -178,7 +178,7 @@ class Trainer(object):
         print('train acc', acc)
         if self.logger:
             self.logger.add_scalar('acc/train_acc', acc, self.epoch)
-        epoch_loss = np.mean(np.array(batch_losses, dtype=np.float))
+        epoch_loss = np.mean(np.array(batch_losses, dtype=float))
         return epoch_loss
 
     def evaluate(self):
@@ -325,7 +325,7 @@ class Trainer(object):
 
 
 def load_data(args, name):
-    file = open('data/' + name + '_' + args.prefix + '.pickle', 'rb')
+    file = open('data/USPTO/' + name + '_' + args.prefix + '.pickle', 'rb')
     full_data = pickle.load(file)
     file.close()
     full_dataset = TransformerDataset(args.shuffle, full_data)
