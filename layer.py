@@ -71,14 +71,14 @@ class AtomEncoder(nn.Module):
     def __init__(self, ntoken, dim, dropout=0.1, rank=0):
         super().__init__()
         self.position_embedding = PositionalEncoding(dim, dropout=dropout)
-        self.element_embedding = nn.Embedding(ntoken, dim)
+        self.element_embedding = nn.Embedding(ntoken, dim) # 词嵌入，可以将离散的词或类别映射到连续的向量空间中
         self.charge_embedding = nn.Embedding(13, dim) #[-6, +6]
         self.aroma_embedding = nn.Embedding(2, dim)
         self.reactant_embedding = nn.Embedding(2, dim)
         self.segment_embedding = nn.Embedding(30, dim)
         self.rank = rank
         self.mlp = MLP(dim)
-        
+
     def forward(self, element, bond, aroma, charge, segment, reactant_mask=None):
         '''
         element, long [b, l] element index
@@ -96,14 +96,16 @@ class AtomEncoder(nn.Module):
         embedding = element_embedding
         #[l, b, dim]
 
+        # element embedding + 位置编码
         position_embedding = self.position_embedding(l)
         embedding = embedding + position_embedding
-        
+
+        # embedding += aroma的embedding
         aroma = aroma.transpose(1, 0).long()
         aroma_embedding = self.aroma_embedding(aroma)
         embedding = embedding + aroma_embedding
         
-        # additional information
+        # additional information: charged, segment, reactant_mask
         charge = charge.transpose(1, 0) + 6  
         charge_embedding = self.charge_embedding(charge)
         embedding = embedding + charge_embedding
@@ -116,14 +118,16 @@ class AtomEncoder(nn.Module):
             reactant_mask = reactant_mask.transpose(1, 0) 
             reactant_embedding = self.reactant_embedding(reactant_mask)
             embedding = embedding + reactant_embedding  
-            
-        message = self.mlp(embedding.permute(1, 2, 0)).permute(2, 0, 1)
-        eye = torch.eye(l).to(self.rank)
+
+        # element size: [l, b, dim]
+        message = self.mlp(embedding.permute(1, 2, 0)).permute(2, 0, 1) # 重新排列并排回去
+        eye = torch.eye(l).to(self.rank) # 单位矩阵[l,l]
+        # embedding乘以邻接矩阵
         tmp = torch.index_select(eye, dim=0, index=bond.reshape(-1)).view(b, l, MAX_BONDS, l).sum(dim=2) # adjacenct matrix
-        tmp = tmp*(1-eye) # remove self loops
-        message = torch.einsum("lbd,bkl->kbd", message, tmp)
+        tmp = tmp*(1-eye) # 逐元素相乘, remove self loops
+        message = torch.einsum("lbd,bkl->kbd", message, tmp) # [l, b, dim] * [b, k=l, l] -> [k=l, b, dim]
         
-        embedding = embedding + message
+        embedding = embedding + message # [l, b, dim]
         
         return embedding
 
@@ -131,7 +135,7 @@ class AtomEncoder(nn.Module):
 class BondDecoder(nn.Module):
     def __init__(self, dim, rank=0):
         super().__init__()
-        self.inc_attention = MultiheadAttention(dim, MAX_DIFF)
+        self.inc_attention = MultiheadAttention(dim, MAX_DIFF) # MAX_DIFF = 6
         self.inc_q = nn.Conv1d(dim, dim, 1)
         self.inc_k = nn.Conv1d(dim, dim, 1)
         
@@ -144,7 +148,7 @@ class BondDecoder(nn.Module):
     def forward(self, molecule_embedding, src_bond, src_mask, tgt_bond=None, tgt_mask=None):
         """
             mask == True iff masked
-            molecule_embedding of shape [l, b, dim]
+            molecule_embedding of shape [l, b, dim] 接受transformer_encoder的output
         """
         l, b, dim = molecule_embedding.shape
         molecule_embedding = molecule_embedding.permute(1, 2, 0)  # to [b, dim, l]

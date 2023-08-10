@@ -11,6 +11,7 @@ import os
 
 class MoleculeEncoder(nn.Module):
     def __init__(self, ntoken, dim, nhead, nlayer, dropout, rank):
+        # 训练设定设定ntoken = 100, dim = 192
         super().__init__()
         self.atom_encoder = AtomEncoder(ntoken, dim, dropout=dropout, rank=rank)
         layer = TransformerEncoderLayer(dim, nhead, dim, dropout)
@@ -21,9 +22,9 @@ class MoleculeEncoder(nn.Module):
     def forward(self, element, bond, aroma, charge, mask, segment, reactant=None):
         '''
         element, long [b, l] element index
-        bonds, long [b, l, 4]
+        bonds, long [b, l, MAX_BONDS = 6]
         aroma, long [b, l]
-        charge, long [b, l] +1 0 -1
+        charge, long [b, l] +2 +1 0 -1 -2
         mask, [b, l] true if masked
         returns [l, b, dim]
         '''
@@ -80,6 +81,7 @@ class MoleculeDecoder(nn.Module):
         self.vae = vae
         self.rank = rank
 
+    # forward for training
     def forward(self, src, src_bond, src_mask, latent, tgt_bond, tgt_aroma, tgt_charge, tgt_mask):
         l, b, dim = src.size()
         if self.vae:
@@ -148,7 +150,9 @@ class MoleculeVAE(nn.Module):
         super().__init__()
         self.args = args
         self.rank = args.local_rank
+        # atom_encoder + transformer_encoder
         self.M_encoder = MoleculeEncoder(ntoken, dim, nhead, nlayer, dropout, self.rank)
+        # bond_decoder + transformer_decoder
         self.P_encoder = MoleculeEncoder(ntoken, dim, nhead, nlayer, dropout, self.rank)
         if args.vae:
             self.V_encoder = VariationalEncoder(dim, nhead, nlayer, dropout, self.rank)
@@ -161,6 +165,8 @@ class MoleculeVAE(nn.Module):
         if mode == 'train':
             bond, aroma, charge = tensors['tgt_bond'], tensors['tgt_aroma'], tensors['tgt_charge']
             if self.args.vae:
+                # MoleculeEncoder (Transformer Encoder + Atom Encoder) -> VariationalEncoder
+                # -> MoleculeDecoder (Transformer Decoder + Bond Decoder)
 
                 tgt = self.P_encoder(tensors['element'], bond, aroma, charge,
                                      tensors['tgt_mask'], tensors['tgt_segment'])
