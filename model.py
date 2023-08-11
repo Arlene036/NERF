@@ -92,7 +92,7 @@ class MoleculeDecoder(nn.Module):
 
         encoder_output = self.transformer_encoder(src, src_key_padding_mask=src_mask)
         eps = 1e-6
-        result = self.bond_decoder(encoder_output, src_bond, src_mask, tgt_bond, tgt_mask)
+        result = self.bond_decoder(encoder_output, src_bond, src_mask, tgt_bond, tgt_mask) # pred_bond [B, L, 6]
 
         tgt_mask = 1-tgt_mask.float()
         encoder_output = encoder_output.permute(1, 2, 0)
@@ -130,7 +130,7 @@ class MoleculeDecoder(nn.Module):
         src_embedding = src_embedding + latent
         encoder_output = self.transformer_encoder(src_embedding, src_key_padding_mask=padding_mask)
         result = {}
-        bond = self.bond_decoder(encoder_output, src_bond, padding_mask)
+        bond = self.bond_decoder(encoder_output, src_bond, padding_mask) # pred_bond [B, L, 6]
         result['bond'] = bond.long()
         encoder_output = encoder_output.permute(1, 2, 0)
         # to [b, c, l]
@@ -149,22 +149,40 @@ class MoleculeVAE(nn.Module):
     def __init__(self, args, ntoken, dim=128, nlayer=8, nhead=8, dropout=0.1):
         super().__init__()
         self.args = args
-        self.rank = args.local_rank
+
+        if args is None:
+            self.rank = 0
+        else:
+            self.rank = args.local_rank
+
         # atom_encoder + transformer_encoder
         self.M_encoder = MoleculeEncoder(ntoken, dim, nhead, nlayer, dropout, self.rank)
         # bond_decoder + transformer_decoder
         self.P_encoder = MoleculeEncoder(ntoken, dim, nhead, nlayer, dropout, self.rank)
-        if args.vae:
+        if args is None or args.vae:
             self.V_encoder = VariationalEncoder(dim, nhead, nlayer, dropout, self.rank)
-        self.M_decoder = MoleculeDecoder(args.vae, dim, nhead, nlayer, dropout, self.rank)
+
+        if args is None:
+            vae = True
+        else:
+            vae = args.vae
+
+        self.M_decoder = MoleculeDecoder(vae, dim, nhead, nlayer, dropout, self.rank)
 
     def forward(self, mode, tensors, temperature = 1):
+        #
+        # print('reactant','***'*20)
+        # print(tensors['reactant'])
+        # print('src_mask','***'*20)
+        # print(tensors['src_mask'])
 
+        # 如果反应物原子出现在产物中，则reactant_mask中对应编号为True
+        # 下面這個：reactant其實需要知道target是什麽才能知道；然而，test的代碼中也用到了reactant，所以作弊了！
         src = self.M_encoder(tensors['element'], tensors['src_bond'], tensors['src_aroma'],
                              tensors['src_charge'], tensors['src_mask'], tensors['src_segment'], tensors['reactant'] )
         if mode == 'train':
             bond, aroma, charge = tensors['tgt_bond'], tensors['tgt_aroma'], tensors['tgt_charge']
-            if self.args.vae:
+            if self.args is None or self.args.vae:
                 # MoleculeEncoder (Transformer Encoder + Atom Encoder) -> VariationalEncoder
                 # -> MoleculeDecoder (Transformer Decoder + Bond Decoder)
 
@@ -174,7 +192,7 @@ class MoleculeVAE(nn.Module):
                 result = self.M_decoder(src, tensors['src_bond'], tensors['src_mask'], posterior,
                                         bond, aroma, charge, tensors['tgt_mask'])
                 result['kl'] = kl
-                result['loss'] = result['pred_loss'] + self.args.beta*kl
+                result['loss'] = result['pred_loss'] + 0.1*kl
             else:
                 result = self.M_decoder(src, tensors['src_mask'], None,
                                         bond, aroma, charge, tensors['tgt_mask'])

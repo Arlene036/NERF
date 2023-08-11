@@ -6,6 +6,7 @@ import pdb
 import os
 from torch.nn import MultiheadAttention
 from torch.distributions.multinomial import Multinomial
+import pandas as pd
 
 MAX_BONDS = 6
 MAX_DIFF = 4
@@ -90,6 +91,13 @@ class AtomEncoder(nn.Module):
         
         '''
         b, l = element.shape
+        # print('\nelement shape'+'-'*20)
+        # print(b, l)
+        # print(element)
+        # print('\nbond shape'+'-'*20)
+        # print(bond.shape)
+        # print(bond)
+
         # basic information
         element = element.transpose(1, 0) 
         element_embedding = self.element_embedding(element)
@@ -151,7 +159,7 @@ class BondDecoder(nn.Module):
             molecule_embedding of shape [l, b, dim] 接受transformer_encoder的output
         """
         l, b, dim = molecule_embedding.shape
-        molecule_embedding = molecule_embedding.permute(1, 2, 0)  # to [b, dim, l]
+        molecule_embedding = molecule_embedding.permute(1, 2, 0)  # to [b, dim of Conv (c), l]
         
         q, k, v = self.inc_q(molecule_embedding), self.inc_k(molecule_embedding), molecule_embedding
         q, k, v = q.permute(2, 0, 1), k.permute(2, 0, 1), v.permute(2, 0, 1)  # to [l, b, c]
@@ -164,20 +172,63 @@ class BondDecoder(nn.Module):
         pad_mask = 1 - src_mask.float()
         # [B, L], 0 if padding
         pad_mask = torch.einsum("bl,bk->blk", pad_mask, pad_mask)
-        diff = (inc - dec)*MAX_DIFF*pad_mask
+        diff = (inc - dec)*MAX_DIFF*pad_mask # [batch_size, l, l]
+
+        # print('\nMAX_DIFF', '-'*20)
+        # print(MAX_DIFF)
+        # print('\npad_mask', '-'*20)
+        # print(pad_mask.shape)
+        # print(pad_mask)
+        # print('\ndiff', '-'*20)
+        # print(diff.shape)
+        # print(diff)
         
         eye = torch.eye(src_mask.shape[1]).to(self.rank)
+
+        # print('\neye', '-'*20)
+        # print(eye.shape) # [l, l]
+        # print(eye)
+
         src_weight = torch.index_select(eye, dim=0, index=src_bond.reshape(-1)).view(b, l, MAX_BONDS, l).sum(dim=2)* pad_mask
-        pred_weight = src_weight + diff      
+
+        # print('\nsrc_weight', '-'*20) # ？？？
+        # print(src_weight.shape) # [batch_size, l, l]
+        # print(src_weight)
+
+        pred_weight = src_weight + diff
+
+        # print('\npred_weight', '-'*20)
+        # print(pred_weight.shape) # [batch_size, l, l]
+        # print(pred_weight)
         
         if tgt_bond is None: # inference
             # [b, l, l]
             bonds = []
-            pred_weight = (pred_weight + pred_weight.permute(0, 2, 1))/2
+            pred_weight = (pred_weight + pred_weight.permute(0, 2, 1))/2 # 对称？
+
+            # print('\n对称pred_weight', '-'*20)
+            # print(pred_weight) # [batch_size, l, l]
+
             for i in range(MAX_BONDS):
                 bonds += [pred_weight.argmax(2)]
-                pred_weight -= torch.index_select(eye, dim=0, index=bonds[-1].reshape(-1)).view(b, l, l)
+
+                # print('\n i =',i,'-'*20)
+                # print('pred_weight.argmax(2)')
+                # print(pred_weight.argmax(2).shape) # [batch_size, l]
+                # print(pred_weight.argmax(2))
+                # print('bonds', '-'*20)
+                # print(bonds[i].shape) # bonds是一个list，长度为MAX_BONDS；每一个元素是张量，形如[batch_size, l]
+                # print(bonds)
+
+                pred_weight -= torch.index_select(eye, dim=0, index=bonds[-1].reshape(-1)).view(b, l, l) # eye: [l,
+                # l], bonds[-1].reshape(-1): [batch_size, l] -> [batch_size*l]
+
+            # 这个是predited的bond
             pred_bond = torch.stack(bonds, dim =2)
+            # print('\npred_bond', '-'*20)
+            # print(pred_bond.shape) # [batch_size, l, MAX_BONDS]
+            # print(pred_bond)
+
             return pred_bond
             
         else: # training
@@ -186,7 +237,7 @@ class BondDecoder(nn.Module):
             and_mask = torch.einsum("bl,bk->blk", 1-tgt_mask, 1-tgt_mask)
         
             tgt_weight = torch.index_select(eye, dim=0, index=tgt_bond.reshape(-1)).view(b, l, MAX_BONDS, l).sum(dim=2)*and_mask
-            error = pred_weight - tgt_weight
+            error = pred_weight - tgt_weight # error == pred_weight - tgt_weight
             error = error*error*pad_mask*or_mask
             loss = error.sum(dim=(1, 2))
             return {'bond_loss':loss}

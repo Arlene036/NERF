@@ -69,7 +69,7 @@ if __name__ == '__main__':
         for key in data:
             data[key] = data[key].to(device)
         output = m('sample', data, temperature=0)
-        print(output)
+        # print(output)
         break
 
 

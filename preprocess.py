@@ -27,8 +27,11 @@ def molecule(mols, src_len, reactant_mask = None, ranges = None):
     aroma = np.zeros(src_len, dtype='int32')
     bonds = np.zeros((src_len, MAX_BONDS), dtype='int32')
     charge = np.zeros(src_len, dtype='int32')
-    
-    reactant = np.zeros(src_len, dtype='int32') # 1 for reactant
+
+    # if reactant_mask is None:
+    reactant = np.ones(src_len, dtype = 'int32')
+    # else:
+    # reactant = np.zeros(src_len, dtype='int32') # 1 for reactant
     mask = np.ones(src_len, dtype='int32') # 1 for masked
     segment = np.zeros(src_len, dtype='int32')
 
@@ -40,8 +43,8 @@ def molecule(mols, src_len, reactant_mask = None, ranges = None):
             element[idx] = atom.GetAtomicNum()
             charge[idx] = atom.GetFormalCharge()
             mask[idx] = 0
-            if reactant_mask:
-                reactant[idx] = reactant_mask[molid]
+            # if reactant_mask:
+            #     reactant[idx] = reactant_mask[molid]
 
             cnt = 0
             for j, b in enumerate(atom.GetBonds()): # mark existence of bond first
@@ -169,6 +172,6 @@ if __name__ =='__main__':
     lg = RDLogger.logger()
     lg.setLevel(RDLogger.CRITICAL)
     RDLogger.DisableLog('rdApp.info') 
-    process("data/USPTO/valid")
-    process("data/USPTO/test")
-    process("data/USPTO/train")
+    # process("data/USPTO/valid")
+    process("data/USPTO/test_1")
+    # process("data/USPTO/train")

@@ -27,7 +27,7 @@ import torch.distributed as dist
 # from concurrent.futures import ProcessPoolExecutor
 from rdkit import RDLogger
 from optimization import WarmupLinearSchedule
-
+from utils import *
 
 class Trainer(object):
     def __init__(self, dataloader_tr, dataloader_te, dataloader_val, args):
@@ -270,6 +270,8 @@ class Trainer(object):
                 for key in batch:
                     batch_gpu[key] = batch[key].to(self.rank)
                 b, l = batch['element'].shape
+                # print('batch size', b, l)
+                # print('batch', batch['element'])
                 cnt += b
                 tgts = []
                 element = batch['element']
@@ -287,9 +289,9 @@ class Trainer(object):
 
                 # Predict the product ---------------------------------------------------------------------------------
                 output_dict = self.model('sample', batch_gpu, temperature)
-                print('output_dict ------------------------------')
-                print(output_dict)
-                print('--' * 20)
+                # print('output_dict ------------------------------')
+                # print(output_dict)
+                # print('--' * 20)
                 # Predict the product ---------------------------------------------------------------------------------
                 pred_aroma, pred_charge = output_dict['aroma'].cpu(), output_dict['charge'].cpu()
                 pred_bond = output_dict['bond'].cpu()
@@ -299,6 +301,16 @@ class Trainer(object):
                 result = map(result2mol, arg_list)
                 result = list(result)
                 pred_smiles = [item[1].split(".") for item in result]  # _, tgt_s, tgt_valid
+
+                # ---------------------------------------------------------------------------------------------
+                # print('pred_smiles', pred_smiles[0])
+                # diff, adj_src, adj_pred = get_diff_adj(element[0], src_mask[0], src_bond[0], src_aroma[0], src_charge[0],
+                #                                        pred_bond.squeeze(), pred_aroma.squeeze(), pred_charge.squeeze())
+                # print('diff', diff)
+                # print('adj_src', adj_src)
+                # print('adj_pred', adj_pred)
+                # ---------------------------------------------------------------------------------------------
+
                 pred_valid = [item[2] for item in result]  # _, tgt_s, tgt_valid
                 for j in range(b):
                     # iterate over the batch
@@ -327,6 +339,12 @@ class Trainer(object):
 def load_data(args, name):
     file = open('data/USPTO/' + name + '_' + args.prefix + '.pickle', 'rb')
     full_data = pickle.load(file)
+
+    # print('data','**'*20)
+    # print(type(full_data))
+    # print(type(full_data[0]['element']))
+    # print(full_data)
+
     file.close()
     full_dataset = TransformerDataset(args.shuffle, full_data)
 
@@ -364,7 +382,10 @@ if __name__ == '__main__':
         valid_dataloader = load_data(args, 'valid')
         train_dataloader = load_data(args, 'train')
     if args.test:
-        test_dataloader = load_data(args, 'test')
+        test_dataloader = load_data(args, 'test_1')
+
+    # for i in test_dataloader:
+    #     print(i['element']) # 为什么batch里面每一个元素都已经自动被padding了？
 
     trainer = Trainer(train_dataloader, test_dataloader, valid_dataloader, args)
 
