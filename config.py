@@ -2,7 +2,7 @@ import argparse
 parser = argparse.ArgumentParser(description='')
 
 # TODO
-check_point = ["epoch-232-loss-0.5991340563215058"]
+check_point = ["epoch-2-loss-4.190030106406974"]
 
 parser.add_argument('--data_path', type=str, help='path of dataset', default='./')
 parser.add_argument('--batch_size', type=int, default=128, help='batch_size.256')
@@ -20,10 +20,10 @@ parser.add_argument('--dim', type=int, default=192, help='dim')
 
 
 parser.add_argument('--save_path', type=str, default='./CKPT/no_reactant_mask/', help='path of save prefix')
-parser.add_argument('--train', action='store_true', default=True, help='do training.')
+parser.add_argument('--train', action='store_true', default=False, help='do training.')
 parser.add_argument('--save', action='store_true', default=True, help='Save model.')
 parser.add_argument('--eval', action='store_true', default=True, help='eval model.')
-parser.add_argument('--test', action='store_true', default=False, help='test model.')
+parser.add_argument('--test', action='store_true', default=True, help='test model.')
 parser.add_argument('--recon', action='store_true', default=False, help='test reconstruction only.')
 
 parser.add_argument('--seed', type=int, default=2019, help='Random seed.')
@@ -33,6 +33,6 @@ parser.add_argument('--lr', type=float, default=5e-4, help='Initial learning rat
 parser.add_argument('--temperature', type=list, default=[1], nargs='+', help='temperature.')
 parser.add_argument('--dropout', type=float, default=0., help='Dropout rate (1 - keep probability).')
 parser.add_argument('--beta', type=float, default=0.1, help='the weight of kl')
-parser.add_argument('--checkpoint', type=str, default=None, nargs='*',
+parser.add_argument('--checkpoint', type=str, default=check_point, nargs='*',
                     help='initialize from a checkpoint, if None, do not restore')
 parser.add_argument('--world_size', type=int, default=1, help='number of processes')

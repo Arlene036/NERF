@@ -134,21 +134,21 @@ def result2mol(args): # for threading
     # print('smile','*'*20)
     # print(smile)
 
-    # return mol, smile, check(smile), mol_graph
-    return mol, smile, check(smile)
+    return mol, smile, check(smile), mol_graph
+    # return mol, smile, check(smile)
 
 
 def visualize(element, mask, bond, aroma, charge, reactant=None):
-    # mol, smile, _, mol_graph = result2mol((element, mask, bond, aroma, charge, reactant))
-    mol, smile, _ = result2mol((element, mask, bond, aroma, charge, reactant))
+    mol, smile, _, mol_graph = result2mol((element, mask, bond, aroma, charge, reactant))
+    # mol, smile, _ = result2mol((element, mask, bond, aroma, charge, reactant))
     array = mol2array(mol)
     return array, smile
 
 
-# def get_adjgraph(element, mask, bond, aroma, charge, reactant=None):
-#     # mol, smile, _, mol_graph = result2mol((element, mask, bond, aroma, charge, reactant))
-#     mol, smile, _ = result2mol((element, mask, bond, aroma, charge, reactant))
-#     return mol_graph
+def get_adjgraph(element, mask, bond, aroma, charge, reactant=None):
+    mol, smile, _, mol_graph = result2mol((element, mask, bond, aroma, charge, reactant))
+    # mol, smile, _ = result2mol((element, mask, bond, aroma, charge, reactant))
+    return mol_graph
 
 def get_diff_adj(element, mask, bond, aroma, charge,
                   bond1, aroma1, charge1,

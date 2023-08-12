@@ -284,7 +284,7 @@ class Trainer(object):
                 # result = pool.map(result2mol, arg_list, chunksize=64)  # pool: parallelize the execution of the
                 result = map(result2mol, arg_list)
                 # result2mol function with multiple sets of arguments from the arg_list
-                result = list(result)
+                result = list(result) # truth-ground
                 tgts = [item[1].split(".") for item in result]  # _, tgt_s, tgt_valid
 
                 # Predict the product ---------------------------------------------------------------------------------
@@ -302,13 +302,38 @@ class Trainer(object):
                 result = list(result)
                 pred_smiles = [item[1].split(".") for item in result]  # _, tgt_s, tgt_valid
 
+                for item in result:
+                    pred_mol_adj = Chem.GetAdjacencyMatrix(item[0])
+                    # print('pred_mol_adj', pred_mol_adj)
+                    pred_mol_adj_fromgraph = item[3].adj_matrix.numpy()
+                    # print('pred_mol_adj_fromgraph', pred_mol_adj_fromgraph)
+
+
                 # ---------------------------------------------------------------------------------------------
-                # print('pred_smiles', pred_smiles[0])
+                print('\npred_smiles', pred_smiles[0])
+                # print('\nsrc_bond',src_bond[0])
+                # print('\npred_bond', pred_bond.squeeze())
                 # diff, adj_src, adj_pred = get_diff_adj(element[0], src_mask[0], src_bond[0], src_aroma[0], src_charge[0],
                 #                                        pred_bond.squeeze(), pred_aroma.squeeze(), pred_charge.squeeze())
                 # print('diff', diff)
                 # print('adj_src', adj_src)
                 # print('adj_pred', adj_pred)
+
+                # src =================================================================================================
+                arg_list_src = [(element[j], src_mask[j], src_bond[j], src_aroma[j], src_charge[j], None) for j in
+                            range(b)]
+                result_src = map(result2mol, arg_list_src)
+                result_src = list(result_src)
+                src_smiles = [item[1].split(".") for item in result_src]  # _, tgt_s, tgt_valid
+                for item in result_src:
+                    src_mol_adj = Chem.GetAdjacencyMatrix(item[0])
+                    # print('src_mol_adj', src_mol_adj)
+                    src_mol_adj_fromgraph = item[3].adj_matrix.numpy()
+                    # print('src_mol_adj_fromgraph', src_mol_adj_fromgraph)
+
+                # diff
+                diff =  pred_mol_adj - src_mol_adj
+                print(diff)
                 # ---------------------------------------------------------------------------------------------
 
                 pred_valid = [item[2] for item in result]  # _, tgt_s, tgt_valid
@@ -331,8 +356,8 @@ class Trainer(object):
         test_result['pred'] = pred
         test_result['ckpt'] = self.args.checkpoint
         print("acc: %f, valid: %f" % (test_result['acc'], test_result['valid']))
-        with open("results/" + str(temperature) + '_' + str(self.args.seed) + '.pickle', 'wb') as file:
-            pickle.dump(test_result, file)
+        # with open("results/" + str(temperature) + '_' + str(self.args.seed) + '.pickle', 'wb') as file:
+        #     pickle.dump(test_result, file)
         return test_result
 
 
@@ -340,8 +365,9 @@ def load_data(args, name):
     file = open('data/USPTO/' + name + '_' + args.prefix + '.pickle', 'rb')
     full_data = pickle.load(file)
 
-    # print('data','**'*20)
-    # print(type(full_data))
+    print('data in 工程','**'*20)
+    print(type(full_data))
+    print(full_data)
     # print(type(full_data[0]['element']))
     # print(full_data)
 
@@ -353,6 +379,7 @@ def load_data(args, name):
                              shuffle=(name == 'train'),
                              num_workers=args.num_workers, collate_fn=TransformerDataset.collate_fn)
     return data_loader
+
 
 
 if __name__ == '__main__':
